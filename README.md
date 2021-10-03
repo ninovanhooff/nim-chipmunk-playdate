@@ -8,4 +8,4 @@
 
 [nim]: http://nim-lang.org/
 [chipmunk]: http://chipmunk-physics.net/
-[documentation]: http://blaxpirit.github.io/nim-chipmunk
+
