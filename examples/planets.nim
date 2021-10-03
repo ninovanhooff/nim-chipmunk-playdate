@@ -56,12 +56,12 @@ proc drawSegment(win: RenderWindow, shape: chipmunk.Shape) =
     win.draw(cast[csfml.VertexArray](shape.userData))
 
 proc randomPoint(rect: var IntRect): Vect =
-  result.x = (random(rect.width) + rect.left).Float
-  result.y = (random(rect.height) + rect.top).Float
+  result.x = (rand(rect.width) + rect.left).Float
+  result.y = (rand(rect.height) + rect.top).Float
 
 proc addPlanet() =
   let
-    mass = random(10_000)/10_000*10.0
+    mass = rand(10_000) / 10_000 * 10.0
     radius = mass * 2.0
     gravityRadius = radius * 8.8
     body = space.addBody(newBody(mass, momentForCircle(mass, 0.0, radius, vzero)))

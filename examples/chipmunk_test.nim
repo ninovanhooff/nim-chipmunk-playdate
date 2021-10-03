@@ -1,7 +1,8 @@
 import 
   chipmunk, 
   csfml, 
-  math
+  math,
+  random
 
 const
   Width = 800
@@ -66,6 +67,7 @@ let
     categories: cBlueBall,
     mask: cBorder or cBox or cBlueBall
   )
+
 ## Predefined CollisionType single assignment variables
 let
   ctBorder = cast[CollisionType](1)
@@ -73,10 +75,10 @@ let
   ctBox = cast[CollisionType](3)
   ctBlueBall = cast[CollisionType](4)
 
-## Collision callback definition
 proc ballCallback(a: Arbiter; space: Space; data: pointer): bool {.cdecl.} =
-  echo("Inside callback")
+  ## Collision callback definition
   result = true
+
 ## Add collision callback only to the blue ball (when it hits the border)
 var handler = space.addCollisionHandler(ctBorder, ctBlueBall)
 handler.postSolveFunc = cast[CollisionpostSolveFunc](ballCallback)
@@ -88,7 +90,9 @@ borders = @[
   Vect(x:Width, y:0.0),
   Vect(x:Width, y:Height),
   Vect(x:0.0, y:Height)]
-var sfBorders = newVertexArray(PrimitiveType.LinesStrip, 4)
+
+var sfBorders = newVertexArray(PrimitiveType.LineStrip, 4)
+
 for i in 0..3:
   var shape = space.addShape(
     newSegmentShape(
