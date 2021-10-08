@@ -1102,7 +1102,7 @@ proc `moment=`*(body: Body; i: Float) {.cdecl, importc: "cpBodySetMoment".}
   ## Set the moment of inertia of the body.
 
 proc position*(body: Body): Vect {.cdecl, importc: "cpBodyGetPosition".}
-  ## Set the position of a body.
+  ## Get the position of a body.
 
 proc `position=`*(body: Body; pos: Vect) {.cdecl, importc: "cpBodySetPosition".}
   ## Set the position of the body.
@@ -1211,7 +1211,6 @@ proc newShapeFilter*(group: Group; categories: Bitmask; mask: Bitmask): ShapeFil
   ## Create a new collision filter.
   var filter = ShapeFilter(group: group)
   return filter
-
 
 proc finalize*(shape: Shape) {.cdecl, importc: "cpShapeDestroy".}
   ## Destroy a shape.
@@ -1322,6 +1321,7 @@ proc initializeCircleShape*(circle: CircleShape; body: Body; radius: Float; offs
 
 proc newCircleShape*(body: Body; radius: Float; offset: Vect): CircleShape {.cdecl, importc: "cpCircleShapeNew".}
   ## Allocate and initialize a circle shape.
+  ## offset: The offset from the center of gravity.
 
 proc offset*(shape: CircleShape): Vect {.cdecl, importc: "cpCircleShapeGetOffset".}
   ## Get the offset of a circle shape.
