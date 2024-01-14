@@ -12,29 +12,18 @@ else:
   # Call destroy() manually, beware of memory leaks!
   {.pragma: destroy.}
 
-{.passL: "-lpthread".}
-when defined(windows):
-  const lib = "chipmunk.dll"
-elif defined(macosx):
-  const lib = "libchipmunk.dylib"
-else:
-  const lib = "libchipmunk.so"
-
-
 import math
-
-proc `div`(x, y: cdouble): cdouble = x / y
 
 converter toBool[T](x: ptr T): bool = x != nil
 
+type
+  Float* = cfloat
+    ## Chipmunk's floating point type.
 
-{.push dynlib: lib.}
+proc `div`(x, y: Float): Float = x / y
 
 
 type
-  Float* = cdouble
-    ## Chipmunk's floating point type.
-
   HashValue* = pointer
     ## Hash value type.
 
@@ -83,6 +72,8 @@ type
 
   Body* = ptr object
 
+  ShapeType* {.bycopy.} = enum
+    cpCircleShape = 0, cpSegmentShape = 1, cpPolyShape = 2
   ShapeObj {.inheritable.} = object
   Shape* = ptr ShapeObj
 
@@ -238,7 +229,7 @@ type
   BodyConstraintIteratorFunc* = proc (body: Body; constraint: Constraint; data: pointer) {.cdecl.}
     ## Body/constraint iterator callback function type.
 
-  BodyArbiterIteratorFunc* = proc (body: Body; arbiter: Arbiter; data: pointer) {.cdecl.}
+  BodyArbiterIteratorFunc = proc (body: Body; arbiter: Arbiter; data: pointer) {.cdecl.}
     ## Body/arbiter iterator callback function type.
 
   PointQueryInfo* {.bycopy.} = object
@@ -547,7 +538,7 @@ proc vlerp*(v1: Vect; v2: Vect; t: Float): Vect {.inline, cdecl.} =
 proc vnormalize*(v: Vect): Vect {.inline, cdecl.} =
   ## Returns a normalized copy of v.
   return vmult(v, 1.0 div
-      (vlength(v) + (cast[cdouble](2.225073858507201e-308))))
+      (vlength(v) + (cast[Float](2.225073858507201e-308))))
 
 
 proc vslerp*(v1: Vect; v2: Vect; t: Float): Vect {.inline, cdecl.} =
@@ -638,13 +629,13 @@ proc containsVect*(bb: BB; v: Vect): bool {.inline, cdecl.} =
 proc merge*(a: BB; b: BB): BB {.inline, cdecl.} =
   ## Returns a bounding box that holds both bounding boxes.
   return newBB(fmin(a.l, b.l), fmin(a.b, b.b), fmax(a.r, b.r),
-                 fmax(a.t, b.t))
+      fmax(a.t, b.t))
 
 
 proc expand*(bb: BB; v: Vect): BB {.inline, cdecl.} =
   ## Returns a bounding box that holds both `bb` and `v`.
   return newBB(fmin(bb.l, v.x), fmin(bb.b, v.y), fmax(bb.r, v.x),
-                 fmax(bb.t, v.y))
+      fmax(bb.t, v.y))
 
 
 proc center*(bb: BB): Vect {.inline, cdecl.} =
@@ -791,7 +782,7 @@ proc transformRigid*(translate: Vect; radians: Float): Transform {.inline, cdecl
   ## Create a rigid transformation matrix. (transation + rotation)
   var rot: Vect = vforangle(radians)
   return newTransposeTransform(rot.x, - rot.y, translate.x, rot.y, rot.x,
-                                 translate.y)
+      translate.y)
 
 
 proc transformRigidInverse*(t: Transform): Transform {.inline, cdecl.} =
@@ -801,17 +792,16 @@ proc transformRigidInverse*(t: Transform): Transform {.inline, cdecl.} =
 
 proc transformWrap*(outer: Transform; inner: Transform): Transform {.inline, cdecl.} =
   return mult(inverse(outer),
-                         mult(inner, outer))
+      mult(inner, outer))
 
 proc transformWrapInverse*(outer: Transform; inner: Transform): Transform {.inline, cdecl.} =
-  return mult(outer,
-                         mult(inner, inverse(outer)))
+  return mult(outer, mult(inner, inverse(outer)))
 
 proc transformOrtho*(bb: BB): Transform {.inline, cdecl.} =
   return newTransposeTransform(2.0 div (bb.r - bb.l), 0.0,
-                                 - ((bb.r + bb.l) div (bb.r - bb.l)), 0.0,
-                                 2.0 div (bb.t - bb.b),
-                                 - ((bb.t + bb.b) div (bb.t - bb.b)))
+                                - ((bb.r + bb.l) div (bb.r - bb.l)), 0.0,
+                                2.0 div (bb.t - bb.b),
+                                - ((bb.t + bb.b) div (bb.t - bb.b)))
 
 proc transformBoneScale*(v0: Vect; v1: Vect): Transform {.inline, cdecl.} =
   var d: Vect = vsub(v1, v0)
@@ -1198,8 +1188,15 @@ proc eachShape*(body: Body; `func`: BodyShapeIteratorFunc; data: pointer) {.cdec
 proc eachConstraint*(body: Body; `func`: BodyConstraintIteratorFunc; data: pointer) {.cdecl, importc: "cpBodyEachConstraint".}
   ## Call `func` once for each constraint attached to `body` and added to the space.
 
-proc eachArbiter*(body: Body; `func`: BodyArbiterIteratorFunc; data: pointer) {.cdecl, importc: "cpBodyEachArbiter".}
+proc eachArbiter(body: Body; `func`: BodyArbiterIteratorFunc; data: pointer) {.cdecl, importc: "cpBodyEachArbiter".}
   ## Call `func` once for each arbiter that is currently active on the body.
+
+type BodyArbiterIteratorClosure* = proc (arbiter: Arbiter) {.raises: [].}
+
+proc eachArbiter*(body: Body, closure: BodyArbiterIteratorClosure) =
+  body.eachArbiter(proc (body: Body, arbiter: Arbiter, data: pointer) {.cdecl.} =
+    cast[ptr BodyArbiterIteratorClosure](data)[](arbiter)
+  , unsafeAddr closure)
 
 var SHAPE_FILTER_ALL* = ShapeFilter(group: (cast[Group](0)))
   ## Collision filter value for a shape that will collide with anything except CP_SHAPE_FILTER_NONE.
@@ -1220,6 +1217,9 @@ proc destroy*(shape: Shape) {.destroy, cdecl, importc: "cpShapeFree".}
 proc destroy*(shape: PolyShape) {.destroy, cdecl, importc: "cpShapeFree".}
 proc destroy*(shape: SegmentShape) {.destroy, cdecl, importc: "cpShapeFree".}
 proc destroy*(shape: CircleShape) {.destroy, cdecl, importc: "cpShapeFree".}
+
+proc kind*(shape: Shape): ShapeType {.cdecl, importc: "cpShapeGetType".}
+  ## Get the type of this shape: cpCircleShape, cpSegmentShape or cpPolyShape.
 
 proc cacheBB*(shape: Shape): BB {.cdecl, importc: "cpShapeCacheBB".}
   ## Update, cache and return the bounding box of a shape based on the body it's attached to.
@@ -1368,9 +1368,9 @@ proc newPolyShape*(body: Body; count: cint; verts: ptr Vect; transform: Transfor
   ## Allocate and initialize a polygon shape with rounded corners.
   ## A convex hull will be created from the vertexes.
 
-proc newPolyShape*(body: Body; count: cint; verts: ptr Vect; radius: Float): PolyShape {.cdecl, importc: "cpPolyShapeNewRaw".}
-  ## Allocate and initialize a polygon shape with rounded corners.
-  ## The vertexes must be convex with a counter-clockwise winding.
+# proc newPolyShape*(body: Body; count: cint; verts: ptr Vect; radius: Float): PolyShape {.cdecl, importc: "cpPolyShapeNewRaw".}
+## Allocate and initialize a polygon shape with rounded corners.
+## The vertexes must be convex with a counter-clockwise winding.
 
 proc initializeBoxShape*(poly: PolyShape; body: Body; width: Float; height: Float; radius: Float): PolyShape {.cdecl, importc: "cpBoxShapeInit".}
   ## Initialize a box shaped polygon shape with rounded corners.
@@ -1398,16 +1398,16 @@ proc finalize*(constraint: Constraint) {.cdecl, importc: "cpConstraintDestroy".}
 
 proc destroy*(constraint: Constraint) {.destroy, cdecl, importc: "cpConstraintFree".}
   ## Destroy and free a constraint.
-proc destroy*(constraint: PinJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: DampedSpring) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: RotaryLimitJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: SlideJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: GearJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: DampedRotarySpring) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: GrooveJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: RatchetJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: SimpleMotor) {.destroy, cdecl, importc: "cpConstraintFree".}
-proc destroy*(constraint: PivotJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: PinJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: DampedSpring) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: RotaryLimitJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: SlideJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: GearJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: DampedRotarySpring) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: GrooveJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: RatchetJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: SimpleMotor) {.destroy, cdecl, importc: "cpConstraintFree".}
+# proc destroy*(constraint: PivotJoint) {.destroy, cdecl, importc: "cpConstraintFree".}
 
 proc space*(constraint: Constraint): Space {.cdecl, importc: "cpConstraintGetSpace".}
   ## Get the cpSpace this constraint is added to.
@@ -1983,10 +1983,8 @@ proc closestPointOnSegment*(p: Vect; a: Vect; b: Vect): Vect {.inline, cdecl.} =
 
 
 
-{.pop.}
-
-
-proc `*`*(v: Vect; s: Float): Vect = vmult(v, s)
+# Nino: disable * because it clashes with DriveDirection
+# proc `*`*(v: Vect; s: Float): Vect = vmult(v, s)
 proc `+`*(v1, v2: Vect): Vect = vadd(v1, v2)
 proc `-`*(v1, v2: Vect): Vect = vsub(v1, v2)
 proc `==`*(v1, v2: Vect): bool = veql(v1, v2)
