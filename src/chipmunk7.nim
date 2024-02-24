@@ -677,10 +677,10 @@ proc intersectsSegment*(bb: BB; a: Vect; b: Vect): bool {.inline, cdecl.} =
   ## Return true if the bounding box intersects the line segment with ends `a` and `b`.
   return segmentQuery(bb, a, b) != (Inf)
 
-
-proc clampVect*(bb: BB; v: Vect): Vect {.inline, cdecl.} =
-  ## Clamp a vector to a bounding box.
-  return v(fclamp(v.x, bb.l, bb.r), fclamp(v.y, bb.b, bb.t))
+## Nino: removed as it assumes a coordinate system where y axis is pointing up
+# proc clampVect*(bb: BB; v: Vect): Vect {.inline, cdecl.} =
+#   ## Clamp a vector to a bounding box.
+#   return v(fclamp(v.x, bb.l, bb.r), fclamp(v.y, bb.b, bb.t))
 
 
 proc wrapVect*(bb: BB; v: Vect): Vect {.inline, cdecl.} =
